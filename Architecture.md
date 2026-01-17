@@ -37,41 +37,41 @@ graph LR
     end
 
     subgraph Software [Python Async Core]
-        Vision[👁️ Vision System<br/>(Background Thread)]:::logic
-        AudioMgr[👂 Audio Manager<br/>(Threading)]:::logic
-        FaceEng[🙂 Face Engine<br/>(60 FPS Loop)]:::logic
-        Main{🧠 Main Orchestrator<br/>(Async Event Loop)}:::logic
+        Vision["👁️ Vision System<br/>(Background Thread)"]:::logic
+        AudioMgr["👂 Audio Manager<br/>(Threading)"]:::logic
+        FaceEng["🙂 Face Engine<br/>(60 FPS Loop)"]:::logic
+        Main{"🧠 Main Orchestrator<br/>(Async Event Loop)"}:::logic
     end
 
-    Cloud((☁️ Google Gemini<br/>Live API)):::cloud
+    Cloud(("☁️ Google Gemini<br/>Live API")):::cloud
 
     %% --- CONNECTIONS ---
     %% Input Flow
-    User -->|Voice & Presence| Mic & Cam
-    Mic -->|Raw PCM| AudioMgr
-    Cam -->|Raw Frames| Vision
+    User -->|"Voice & Presence"| Mic & Cam
+    Mic -->|"Raw PCM"| AudioMgr
+    Cam -->|"Raw Frames"| Vision
     
     %% Internal Processing
-    Vision -.->|Face Coordinates (x,y)| FaceEng
-    Vision -->|Compressed JPEG| Main
-    AudioMgr -->|Input Audio| Main
-    AudioMgr -.->|RMS Volume| FaceEng
+    Vision -.->|"Face Coords (x,y)"| FaceEng
+    Vision -->|"Compressed JPEG"| Main
+    AudioMgr -->|"Input Audio"| Main
+    AudioMgr -.->|"RMS Volume"| FaceEng
     
     %% Cloud Handshake
-    Main <==>|WebSocket Stream| Cloud
+    Main <==>|"WebSocket Stream"| Cloud
     
     %% Output Flow
-    Main -->|State & Emotion| FaceEng
-    Main -->|Action Tags| Motors
-    Main -->|Output Audio| AudioMgr
+    Main -->|"State & Emotion"| FaceEng
+    Main -->|"Action Tags"| Motors
+    Main -->|"Output Audio"| AudioMgr
     
     %% Rendering / Actuation
-    AudioMgr -->|Waveform| Speaker
-    FaceEng -->|Procedural GFX| Screen
+    AudioMgr -->|"Waveform"| Speaker
+    FaceEng -->|"Procedural GFX"| Screen
     
     %% Feedback Loop
-    Motors -->|Physical Action| User
-    Speaker -->|Voice Response| User
+    Motors -->|"Physical Action"| User
+    Speaker -->|"Voice Response"| User
 ```
 
 ---
@@ -79,11 +79,12 @@ graph LR
 ## 💻 Software Architecture
 
 ### 1. The Core: Asynchronous Orchestration
-*   **Technology:** Python `asyncio`
+*   **Technology:** Python `asyncio` + `Threading`
 *   **Design Pattern:** Event Loop with Non-Blocking I/O.
-*   **Why?** A robot cannot freeze while thinking.
-    *   **Legacy Approach:** Record Audio -> Send -> Wait -> Play. (Result: Robot freezes).
-    *   **AIRA Approach:** The `face_drawing_loop` runs independently at 60Hz. Network requests (`send_data_loop`) and Audio playback (`receive_loop`) run as concurrent tasks. Audio writing is offloaded to a separate thread (`asyncio.to_thread`) to prevent the GIL (Global Interpreter Lock) from stalling the animation.
+*   **Critical Implementation:**
+    *   **Legacy Approach:** Recording Audio -> Sending -> Waiting -> Playing. (Result: The robot freezes while talking).
+    *   **AIRA Approach:** The `face_drawing_loop` runs independently at 60Hz. Network requests (`send_data_loop`) and Audio playback (`receive_loop`) run as concurrent tasks.
+    *   **The Fix:** Audio writing is explicitly offloaded to a separate thread using `asyncio.to_thread`. This bypasses the Python GIL (Global Interpreter Lock) for I/O, allowing the face animation to continue smoothing while audio plays.
 
 ### 2. The Visual Cortex: Procedural Face Engine
 *   **Technology:** `Pygame`, `Math (Sine/Lerp)`
