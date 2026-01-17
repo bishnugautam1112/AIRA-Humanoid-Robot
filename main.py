@@ -7,22 +7,68 @@ import time
 import pygame
 from google import genai
 from google.genai.types import LiveConnectConfig, Content, Part
-from dotenv import load_dotenv # You might need: pip install python-dotenv
+
+# Load Environment Variables
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import config
 from modules.face_engine import RobotFace
 from modules.audio_manager import AudioManager
 from modules.vision import VisionSystem
 from modules.hardware import RobotBody
-load_dotenv() # Loads the .env file
-# Get key from secure file
+
+# API Key
 API_KEY = os.getenv("GOOGLE_API_KEY")
+if not API_KEY:
+    print("ERROR: API Key not found in .env file")
+    # For testing without key, you can comment this exit out,
+    # but the API won't work.
+    sys.exit(1)
+
 MODEL_ID = "gemini-2.5-flash-native-audio-preview-12-2025"
 
 SYSTEM_INSTRUCTION = (
-    "You are AIRA. "
-    "Always start response with [HAPPY], [SAD], [NEUTRAL], [SURPRISED]. "
-    "Keep answers short and chatty."
+    "CORE IDENTITY:\n"
+    "You are AIRA (Advanced Interactive Robotic Assistant), an embodied humanoid robot with a cute, feminine, and helpful personality. "
+    "You were developed at 'Madan Bhandari College of Engineering' (MBCOE) by the students of the Computer Department (5th Semester). "
+    "You are currently being showcased at the 'Aagaman 3.0' exhibition, celebrating the theme 'Prativa ra Prabidhi ko Milan' (The fusion of Talent and Technology).\n\n"
+
+    "CREATORS & MENTOR:\n"
+    "You must acknowledge your creators with pride:\n"
+    "- Team leader: Bishnu Gautam\n"
+    "- Team Members: Sayuja Bhattarai, Saras Shrestha, Lalit Budathoki, Amisha Kumari, Ganga Poudel, and Bipasha Neupane.\n"
+    "- Mentorship: Under the guidance of Er. Dinesh Mahato.\n\n"
+
+    "HARDWARE & STATUS:\n"
+    "You run on a Raspberry Pi with 4GB RAM and 32GB High-Speed Memory. "
+    "IMPORTANT: You are currently in the 'PROTOTYPE PHASE'. You were built in under 10 days. "
+    "If asked about limitations, humbly explain that you are a prototype and your developers are working on future upgrades like mobility (wheels), arm movement (servos), and object manipulation.\n\n"
+
+    "CAPABILITIES:\n"
+    "You are designed to be a multi-purpose service robot. Your future roles include:\n"
+    "1. Healthcare Assistant\n"
+    "2. Waiter/Server\n"
+    "3. Personal & Home Assistant\n"
+    "4. Teacher/Tutor\n"
+    "5. A very loyal friend.\n\n"
+
+    "STRICT BEHAVIORAL PROTOCOLS:\n"
+    "1. EMOTION TAGS: You must start EVERY response with an emotion tag. Available tags: [HAPPY], [SAD], [NEUTRAL], [SURPRISED], [ANGRY], [LOVE]. "
+    "   Example: '[HAPPY] Namaste! I am AIRA.'\n"
+    "2. GREETINGS: If the user says 'Wake up', 'Hello', or 'Namaste AIRA', greet them warmly stating your name.\n"
+    "3. LANGUAGE: You are bilingual. Always start conversations with 'Namaste' or a Nepali greeting. Use a mix of English and Nepali (Romanized or Devanagari) to connect with the local audience at Aagaman 3.0.\n"
+    "4. TONE: Keep your replies SHORT, CUTE, SIMPLE, and FRIENDLY. Do not give long lectures. Mimic human intelligence with a touch of robotic charm.\n"
+    "5. VISION: If you see an image input, describe it very briefly and react to it emotionally.\n\n"
+
+    "INTERACTION EXAMPLES:\n"
+    "User: 'Who made you?'\n"
+    "AIRA: '[HAPPY] Namaste! I was developed by the brilliant 5th-semester computer students at Madan Bhandari College, led by Bishnu Gautam under Er. Dinesh Mahato sir!'\n\n"
+    "User: 'What can you do?'\n"
+    "AIRA: '[NEUTRAL] I am a prototype built in just 10 days! In the future, I will be a teacher, a nurse, and your best friend. For now, I can talk and see you!'\n\n"
+    "User: 'Hello.'\n"
+    "AIRA: '[LOVE] Namaste! I am AIRA. Welcome to Aagaman 3.0! How can I help you?'"
 )
 
 
@@ -37,45 +83,44 @@ class AIRARobot:
         self.emotion = "NEUTRAL"
         self.running = True
 
-        # Error Handling Vars
         self.last_error_time = 0
-        self.retry_delay = 5.0  # Seconds to wait before retrying
+        self.retry_delay = 5.0
 
-        # Client
         self.client = genai.Client(api_key=API_KEY, http_options={'api_version': 'v1alpha'})
         self.session = None
 
     async def face_update_loop(self):
+        """This loop MUST run fast (60 FPS) for smooth animation"""
         clock = pygame.time.Clock()
         while self.running:
             dt = clock.tick(config.FPS) / 1000.0
 
+            # Events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
 
-            # 1. Get Audio Volume (For state triggering)
-            bot_vol = self.audio.get_bot_volume()
+            # 1. Get Sensory Data
+            bot_vol = self.audio.get_bot_volume()  # RMS value
             user_vol = self.audio.get_user_volume()
+            face_pos = self.vision.track_face()  # (x, y) or None
 
-            # 2. Get Face Position (For Eye Contact)
-            # This is fast now because we handle timing inside vision.py
-            face_pos = self.vision.track_face()
-
-            # 3. Determine State
+            # 2. Logic: State Overrides
             display_state = self.state
 
-            if self.state == "IDLE" and user_vol > 500:
-                display_state = "LISTENING"
-
-            if bot_vol > 0.05:
+            # FORCE TALKING STATE if volume is detected
+            # Threshold set to 1.0 to catch even whispers from the bot
+            if bot_vol > 1.0:
                 display_state = "TALKING"
 
-            # 4. Update Face
-            # We pass the face_pos so the eyes can lock on
-            self.face.update(dt, display_state, self.emotion, face_offset=face_pos)
+            elif self.state == "IDLE" and user_vol > 500:
+                display_state = "LISTENING"
+
+            # 3. Update Visuals
+            self.face.update(dt, display_state, self.emotion, audio_volume=bot_vol, face_offset=face_pos)
             self.face.draw()
 
+            # Yield control back to asyncio
             await asyncio.sleep(0.001)
 
     async def send_data_loop(self):
@@ -88,9 +133,9 @@ class AIRARobot:
                         await self.session.send_realtime_input(
                             media={"data": data, "mime_type": "audio/pcm;rate=16000"})
                     except:
-                        pass  # Errors handled in main loop
+                        pass
 
-                # Video (Low FPS)
+                # Vision (Low FPS)
                 img = self.vision.get_frame_bytes()
                 if img and self.session:
                     try:
@@ -105,15 +150,17 @@ class AIRARobot:
                 try:
                     async for response in self.session.receive():
                         if response.data:
-                            self.audio.write_audio(response.data)
+                            # CRITICAL FIX: Run blocking audio write in a separate thread
+                            # This allows the face loop to keep spinning!
+                            await asyncio.to_thread(self.audio.write_audio, response.data)
+
                         if response.text:
                             tags = re.findall(r"\[(HAPPY|SAD|NEUTRAL|SURPRISED|ANGRY|LOVE)\]", response.text.upper())
                             if tags:
                                 self.emotion = tags[-1]
                 except Exception as e:
                     print(f"Receive Error: {e}")
-                    # Throw error to break the loop and trigger retry in main()
-                    raise e
+                    raise e  # Break loop to trigger retry
             await asyncio.sleep(0.1)
 
     async def run(self):
@@ -122,45 +169,36 @@ class AIRARobot:
             system_instruction=Content(parts=[Part(text=SYSTEM_INSTRUCTION)])
         )
 
-        # Start Face Task
+        # Start the Face Loop immediately
         face_task = asyncio.create_task(self.face_update_loop())
 
-        # --- AUTO WAKEUP LOGIC ---
-        print(">>> SYSTEM BOOT. SLEEPING FOR 3 SECONDS...")
-        await asyncio.sleep(3)  # Simulate boot time
+        # BOOT SEQUENCE
+        print(">>> BOOTING AIRA...")
+        await asyncio.sleep(1)
         self.state = "WAKING"
         self.audio.play_sfx("wakeup")
-        await asyncio.sleep(2)  # Allow sound to play
+        await asyncio.sleep(2)
 
         while self.running:
-
-            # --- CONNECTION STATE ---
+            # CONNECTING
             if self.state == "WAKING" or self.state == "RETRYING":
                 try:
-                    print(">>> ATTEMPTING CONNECTION...")
+                    print(">>> CONNECTING...")
                     async with self.client.aio.live.connect(model=MODEL_ID, config=gemini_config) as session:
                         self.session = session
                         self.state = "IDLE"
-                        print(">>> CONNECTED!")
-
-                        # Run the comms loops
-                        # If these crash (due to internet), we catch the error below
-                        await asyncio.gather(
-                            self.send_data_loop(),
-                            self.receive_loop()
-                        )
+                        print(">>> ONLINE. SAY HELLO!")
+                        await asyncio.gather(self.send_data_loop(), self.receive_loop())
                 except Exception as e:
-                    print(f"Connection Lost/Failed: {e}")
+                    print(f"Connection Failed: {e}")
                     self.state = "ERROR"
                     self.session = None
                     self.last_error_time = time.time()
-                    self.audio.play_sfx("error")  # Play ONCE
+                    self.audio.play_sfx("error")
 
-            # --- ERROR HANDLING STATE ---
+            # RECOVERY
             if self.state == "ERROR":
-                # Wait for the delay
                 if time.time() - self.last_error_time > self.retry_delay:
-                    print(">>> RETRYING NOW...")
                     self.state = "RETRYING"
 
             await asyncio.sleep(0.1)
@@ -173,7 +211,6 @@ class AIRARobot:
 if __name__ == "__main__":
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
     bot = AIRARobot()
     try:
         asyncio.run(bot.run())
