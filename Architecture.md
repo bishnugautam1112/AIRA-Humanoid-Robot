@@ -18,28 +18,60 @@ The architecture is built on a **Non-Blocking Asynchronous Event Loop**, ensurin
 The system follows a **Star Network Topology** where the Central Orchestrator (`main.py`) manages data flow between isolated modules.
 
 ```mermaid
-graph TD
-    User((User)) <-->|Voice/Visuals| Hardware[Raspberry Pi 4]
+graph LR
+    %% --- STYLING ---
+    classDef cloud fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef edge fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef logic fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef human fill:#fce4ec,stroke:#880e4f,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% --- NODES ---
+    User((👤 User / Guest)):::human
     
-    subgraph "Edge Computing (Local Pi)"
-        Hardware -->|PCM Stream| AudioMgr[Audio Manager]
-        Hardware -->|Video Frames| Vision[Vision System]
-        
-        Vision -->|Face Coordinates| FaceEng[Face Engine]
-        Vision -->|JPEG Frames| Main[Main Orchestrator]
-        
-        AudioMgr -->|RMS Volume| FaceEng
-        AudioMgr -->|PCM Data| Main
-        
-        Main -->|State/Emotion| FaceEng
-        Main -->|Servo Commands| MotorCtl[Hardware Controller]
-        
-        FaceEng -->|60 FPS Render| Screen[Display]
+    subgraph Hardware [Edge Hardware Layer]
+        Mic[🎤 Microphone]:::edge
+        Cam[📷 Camera]:::edge
+        Speaker[🔊 Speaker]:::edge
+        Screen[🖥️ 7-inch Display]:::edge
+        Motors[⚙️ N20 Motors & Servos]:::edge
     end
+
+    subgraph Software [Python Async Core]
+        Vision[👁️ Vision System<br/>(Background Thread)]:::logic
+        AudioMgr[👂 Audio Manager<br/>(Threading)]:::logic
+        FaceEng[🙂 Face Engine<br/>(60 FPS Loop)]:::logic
+        Main{🧠 Main Orchestrator<br/>(Async Event Loop)}:::logic
+    end
+
+    Cloud((☁️ Google Gemini<br/>Live API)):::cloud
+
+    %% --- CONNECTIONS ---
+    %% Input Flow
+    User -->|Voice & Presence| Mic & Cam
+    Mic -->|Raw PCM| AudioMgr
+    Cam -->|Raw Frames| Vision
     
-    subgraph "Cloud Computing (Google Cloud)"
-        Main <-->|WebSocket (Real-time)| Gemini[Gemini 2.5 Flash Live API]
-    end
+    %% Internal Processing
+    Vision -.->|Face Coordinates (x,y)| FaceEng
+    Vision -->|Compressed JPEG| Main
+    AudioMgr -->|Input Audio| Main
+    AudioMgr -.->|RMS Volume| FaceEng
+    
+    %% Cloud Handshake
+    Main <==>|WebSocket Stream| Cloud
+    
+    %% Output Flow
+    Main -->|State & Emotion| FaceEng
+    Main -->|Action Tags| Motors
+    Main -->|Output Audio| AudioMgr
+    
+    %% Rendering / Actuation
+    AudioMgr -->|Waveform| Speaker
+    FaceEng -->|Procedural GFX| Screen
+    
+    %% Feedback Loop
+    Motors -->|Physical Action| User
+    Speaker -->|Voice Response| User
 ```
 
 ---
