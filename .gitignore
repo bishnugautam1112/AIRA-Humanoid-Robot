@@ -1,33 +1,4 @@
-# ===== Python =====
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg-info/
-dist/
-build/
-
-# ===== Virtual Environment =====
-.venv/
-venv/
-env/
-ENV/
-
-# ===== Environment variables =====
-.env
-.env.*
-
-# ===== PyCharm =====
 .idea/
-*.iml
-
-# ===== VS Code =====
-.vscode/
-
-# ===== OS files =====
-.DS_Store
-Thumbs.db
-
-# ===== Logs =====
-*.log
+.env
+.venv/
+__pycache__/
