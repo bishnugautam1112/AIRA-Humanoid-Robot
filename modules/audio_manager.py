@@ -45,7 +45,14 @@ class AudioManager:
             except:
                 pass
 
-        sfx_map = {"wakeup": "wakeup.wav", "sleep": "sleep.wav", "error": "error.wav"}
+        sfx_map = {
+            "wakeup": "wakeup.wav",
+            "sleep": "sleep.wav",
+            "error": "error.wav",
+            "think1": "think1.wav",  # <--- NEW
+            "think2": "think2.wav",  # <--- NEW
+            "think3": "think3.wav"  # <--- NEW
+        }
         for name, filename in sfx_map.items():
             path = os.path.join(config.SOUNDS_DIR, filename)
             if os.path.exists(path):
@@ -54,6 +61,12 @@ class AudioManager:
     def play_sfx(self, name):
         if name in self.sounds:
             self.sounds[name].play()
+
+    def play_random_think(self):
+        """Plays a random thinking sound to fill silence"""
+        import random
+        choice = random.choice(["think1", "think2", "think3"])
+        self.play_sfx(choice)
 
     def calculate_rms(self, data):
         try:
