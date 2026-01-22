@@ -3,7 +3,7 @@ import os
 
 # --- SYSTEM SETTINGS ---
 FULLSCREEN = False  # Set to True for running on the Robot Screen
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = 854
 SCREEN_HEIGHT = 480
 FPS = 60
 

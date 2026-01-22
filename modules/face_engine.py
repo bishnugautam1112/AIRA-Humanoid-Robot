@@ -4,13 +4,28 @@ import math
 import time
 import config
 
+# --- RESOLUTION SETTINGS ---
+# We define them here to force the exact resolution you need
+DISPLAY_WIDTH = 854
+DISPLAY_HEIGHT = 480
+
 
 class RobotFace:
     def __init__(self):
         pygame.init()
-        flags = pygame.FULLSCREEN if config.FULLSCREEN else pygame.RESIZABLE
-        self.screen = pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT), flags)
+
+        # --- SCREEN SETUP ---
+        # FULLSCREEN: Forces the app to take over the specific display
+        # DOUBLEBUF: Optimizes rendering for Raspberry Pi
+        flags = pygame.FULLSCREEN | pygame.DOUBLEBUF
+
+        # Initialize the screen with exactly 854x480
+        self.screen = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT), flags)
         pygame.display.set_caption("AIRA Visual System")
+
+        # --- HIDE MOUSE ---
+        # Hides the cursor so it doesn't look like a computer screen
+        pygame.mouse.set_visible(False)
 
         # --- STATE VARIABLES ---
         self.current_state = "SLEEPING"
@@ -41,6 +56,13 @@ class RobotFace:
     def update(self, dt, state, emotion, audio_volume=0.0, face_offset=None):
         self.current_state = state
         self.current_emotion = emotion
+
+        # --- EXIT SAFETY ---
+        # Press ESC to force quit (useful for testing in fullscreen)
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_ESCAPE]:
+            pygame.quit()
+            exit()
 
         # ==========================
         # 1. MOUTH LOGIC (Instant Stop + Sine Wave)
@@ -137,8 +159,6 @@ class RobotFace:
         anchor_y = eye_top_y + lid_y_offset
 
         # Anchor X is the outer edge of the eye
-        # Left Eye (side -1): Outer edge is Left side
-        # Right Eye (side 1): Outer edge is Right side
         eye_center_x = cx + (side * config.EYE_SPACING // 2)
 
         # Color same as eye
@@ -165,7 +185,10 @@ class RobotFace:
 
     def draw(self):
         self.screen.fill(config.COLOR_BG)
-        cx, cy = config.SCREEN_WIDTH // 2, config.SCREEN_HEIGHT // 2
+
+        # --- CENTER CALCULATION ---
+        # Uses the hardcoded variables to ensure it is centered on 854x480
+        cx, cy = DISPLAY_WIDTH // 2, DISPLAY_HEIGHT // 2
 
         # 1. DRAW EYES
         for side in [-1, 1]:
@@ -204,6 +227,7 @@ class RobotFace:
         rect_w = config.MOUTH_WIDTH
         rect_h = self.mouth_height
 
+        # Positioned relative to center
         mouth_rect = pygame.Rect(cx - rect_w // 2, cy + 120 - rect_h // 2, rect_w, rect_h)
         pygame.draw.rect(self.screen, tuple(map(int, self.current_color)), mouth_rect, border_radius=10)
 
